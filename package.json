@@ -1,0 +1,46 @@
+{
+  "name": "linter-rapture",
+  "main": "lib/index.js",
+  "version": "0.0.1",
+  "private": true,
+  "description": "My Linter Package",
+  "scripts": {
+    "test": "apm test",
+    "lint": "eslint .",
+    "clean": "rimraf lib",
+    "watch": "npm run compile -- -w",
+    "build": "npm run clean && babel ./src --out-dir ./lib"
+  },
+  "keywords": [
+    "linter-rapture",
+    "json"
+  ],
+  "engines": {
+    "atom": ">=1.4.0 <2.0.0"
+  },
+  "consumedServices": {
+    "linter-indie": {
+      "versions": {
+        "2.0.0": "consumeIndie"
+      }
+    }
+  },
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "chokidar": "^1.6.1",
+    "lodash": "^4.17.4",
+    "minimatch": "^3.0.3"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.24.0",
+    "babel-preset-es2015": "^6.24.0",
+    "babel-preset-es2016": "^6.22.0",
+    "babel-preset-node5": "^12.0.1",
+    "eslint": "^3.19.0",
+    "eslint-config-airbnb-base": "^11.1.2",
+    "eslint-plugin-import": "^2.2.0",
+    "fs-extra": "^2.1.2",
+    "jasmine-promises": "^0.4.1",
+    "sinon": "^2.1.0"
+  }
+}

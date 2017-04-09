@@ -1,0 +1,21 @@
+{
+    "sessions": [{
+        "id": "sessionIDA",
+        "rules": [{
+            "id": "ruleIDA",
+            "rapture": "./simpleJs.js",
+            "pattern": "**/*.json"
+        }]
+    },{
+        "id": "sessionIDB",
+        "rules": [{
+            "id": "ruleIDA",
+            "rapture": "./simpleJs.foo.js",
+            "pattern": "**/*.foo.json"
+        },{
+            "id": "ruleIDB",
+            "rapture": "./simpleJs.bar.js",
+            "pattern": "**/*.bar.json"
+        }]
+    }]
+}

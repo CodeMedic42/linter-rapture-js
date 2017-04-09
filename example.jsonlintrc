@@ -1,0 +1,17 @@
+{
+    sessions: [{
+        id: "sessionIDA",
+        rules: [{
+            id: "ruleIDA",
+            rapture: "./rules/A/index.js",
+            pattern: ""
+        }]
+    },{
+        id: "sessionIDA",
+        rules: [{
+            id: "ruleIDA",
+            rapture: "./rules/A/index.js",
+            pattern: ""
+        }]
+    }]
+}
