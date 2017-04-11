@@ -1,5 +1,5 @@
 {
-  "name": "linter-rapture",
+  "name": "linter-rapture-js",
   "main": "lib/index.js",
   "version": "0.0.1",
   "private": true,
