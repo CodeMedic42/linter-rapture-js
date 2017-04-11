@@ -1,16 +1,5 @@
 /* global jasmine describe xdescribe it xit expect beforeEach afterEach waitsForPromise */
 
-/*
-Comment 001
-I have no idea why I need this extra wait. It might be windows.
-
-No matter what timeout interval I use the file is never registered in Chokidar before the next step is ran.
-
-But if I have this extra empty step then the interval does not matter, the file is registered and everything works.
-
-Either FsExtra.copySync is not truly synchronous or Chokidar/node just has problems in windows.
-*/
-
 'use babel';
 
 const _ = require('lodash');
@@ -22,16 +11,15 @@ const Sinon = require('sinon');
 const plugin = require('../src/index.js');
 
 const internalDataWhenStopped = {
-    configWatch: null,
-    sessions: null,
-    fileWatchers: null,
     linter: null,
     editorGroupContext: null,
-    inEditor: null,
-    globs: null,
     editorContexts: null,
-    currentConfig: null
+    projects: null,
+    watcherOptions: null,
+    projectListener: null
 };
+
+const stepInterval = 100;
 
 function runSteps(steps, counter) {
     let _counter = counter;
@@ -47,42 +35,66 @@ function runSteps(steps, counter) {
     }
 
     if (_counter < steps.length) {
-        setTimeout(runSteps, 200, steps, _counter);
+        _.delay(() => {
+            /*
+            There are some oddities when it comes to the timing of thing. Especially around File watches.
+            Having two timeouts, rather than one, seems to due the trick.
+            */
+            _.delay(runSteps, stepInterval, steps, _counter);
+        }, stepInterval);
     }
 }
 
-function testArray(expected, observed) {
-    if (_.isNil(expected)) {
-        expect(observed).toBe(null);
-    } else {
-        expect(observed instanceof Array).toBe(true);
-        expect(observed.length).toBe(expected);
-    }
-}
+// function testArray(expected, observed) {
+//     if (_.isNil(expected)) {
+//         expect(observed).toBe(null);
+//     } else {
+//         expect(observed instanceof Array).toBe(true);
+//         expect(observed.length).toBe(expected);
+//     }
+// }
 
-function testInEditor(expected, observed) {
+function testProjects(expected, observed) {
     if (_.isNil(expected)) {
         expect(observed).toBe(null);
     } else {
         expect(observed instanceof Object).toBe(true);
-        expect(_.isEqual(expected, observed)).toBe(true);
+        expect(_.isEqual(_.keys(expected), _.keys(observed))).toBe(true);
+
+        _.forOwn(expected, (exp, path) => {
+            expect(observed[path]).toBeDefined();
+        });
+    }
+}
+
+function testEditorContexts(expected, observed) {
+    if (_.isNil(expected)) {
+        expect(observed).toBe(null);
+    } else {
+        expect(observed instanceof Object).toBe(true);
+        expect(_.isEqual(_.keys(expected), _.keys(observed))).toBe(true);
+
+        _.forOwn(expected, (exp, path) => {
+            if (path === '*') {
+                expect(observed['*'].length).toBe(exp.length);
+            } else {
+                expect(observed[path]).toBeDefined();
+            }
+        });
     }
 }
 
 function validateInternalData(internalData, expected) {
-    expect(_.keys(internalData).length).toBe(9);
+    expect(_.keys(internalData).length).toBe(6);
 
-    expect(_.isNil(internalData.currentConfig)).toBe(!expected.currentConfig);
-    expect(_.isNil(internalData.configWatch)).toBe(!expected.configWatch);
     expect(internalData.linter).toEqual(expected.linter);
     expect(_.isNil(internalData.editorGroupContext)).toBe(!expected.editorGroupContext);
+    expect(_.isNil(internalData.watcherOptions)).toBe(!expected.watcherOptions);
+    expect(_.isNil(internalData.projectListener)).toBe(!expected.projectListener);
 
-    testArray(expected.sessions, internalData.sessions);
-    testArray(expected.fileWatchers, internalData.fileWatchers);
-    testArray(expected.globs, internalData.globs);
-    testArray(expected.editorContexts, internalData.editorContexts);
+    testProjects(expected.projects, internalData.projects);
 
-    testInEditor(expected.inEditor, internalData.inEditor);
+    testEditorContexts(expected.editorContexts, internalData.editorContexts);
 }
 
 function buidlLinterMock() {
@@ -105,45 +117,47 @@ function buidlLinterMock() {
     };
 }
 
-const issueCheck = Sinon.match((issue) => {
-    if (!_.isString(issue.excerpt) || issue.excerpt.length <= 0) {
-        return false;
-    } else if (issue.severity !== 'error') {
-        return false;
-    } else if (!_.isPlainObject(issue.location)) {
-        return false;
-    } else if (issue.location.file !== 'files\\test.json') {
-        return false;
-    } else if (!_.isArray(issue.location.position) || issue.location.position.length !== 2) {
-        return false;
-    } else if (!_.isArray(issue.location.position[0]) || issue.location.position[0].length !== 2) {
-        return false;
-    } else if (!_.isArray(issue.location.position[1]) || issue.location.position[1].length !== 2) {
-        return false;
-    } else if (!_.isFinite(issue.location.position[0][0]) || !_.isFinite(issue.location.position[0][1])) {
-        return false;
-    } else if (!_.isFinite(issue.location.position[1][0]) || !_.isFinite(issue.location.position[1][1])) {
-        return false;
-    } else if (issue.location.position[0][0] < 0 || issue.location.position[0][1] < 0) {
-        return false;
-    } else if (issue.location.position[1][0] < 0 || issue.location.position[1][1] < 0) {
-        return false;
-    }
+function buildIssueCheck(path) {
+    return Sinon.match((issue) => {
+        if (!_.isString(issue.excerpt) || issue.excerpt.length <= 0) {
+            return false;
+        } else if (issue.severity !== 'error') {
+            return false;
+        } else if (!_.isPlainObject(issue.location)) {
+            return false;
+        } else if (issue.location.file !== Path.join(path, 'files\\test.json')) {
+            return false;
+        } else if (!_.isArray(issue.location.position) || issue.location.position.length !== 2) {
+            return false;
+        } else if (!_.isArray(issue.location.position[0]) || issue.location.position[0].length !== 2) {
+            return false;
+        } else if (!_.isArray(issue.location.position[1]) || issue.location.position[1].length !== 2) {
+            return false;
+        } else if (!_.isFinite(issue.location.position[0][0]) || !_.isFinite(issue.location.position[0][1])) {
+            return false;
+        } else if (!_.isFinite(issue.location.position[1][0]) || !_.isFinite(issue.location.position[1][1])) {
+            return false;
+        } else if (issue.location.position[0][0] < 0 || issue.location.position[0][1] < 0) {
+            return false;
+        } else if (issue.location.position[1][0] < 0 || issue.location.position[1][1] < 0) {
+            return false;
+        }
 
-    return true;
-}, 'issueCheck');
+        return true;
+    }, 'issueCheck');
+}
 
 function activate() {
     plugin.activate({
         usePolling: true,
-        interval: 200
+        interval: 100
     });
 }
 
-function checkLinterSpies(linterBuilderMock, expectedFileName, expectedIssues, expectedDisposeStatus) {
-    expect(linterBuilderMock.linterMock.dispose.called).toBe(expectedDisposeStatus);
+function checkLinterSpies(linterBuilderMock, expectedFileName, expectedIssues, expectedDisposeCount) {
+    expect(linterBuilderMock.linterMock.dispose.callCount).toBe(expectedDisposeCount);
 
-    expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
+    expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(1);
     expect(linterBuilderMock.linterMock.setMessages.calledWith(expectedFileName, expectedIssues)).toBe(true);
 
     linterBuilderMock.linterMock.setMessages.reset();
@@ -156,54 +170,27 @@ describe('Linter Tests', () => {
         jasmine.useRealClock();
     });
 
-    // xit('Simple Test', () => {
-    //     validateInternalData(plugin.internalData, internalDataWhenStopped);
-    //
-    //     plugin.activate();
-    //
-    //     validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-    //         configWatch: true
-    //     }));
-    //
-    //     const linterBuilderMock = buidlLinterMock();
-    //
-    //     plugin.consumeIndie(linterBuilderMock.registerIndieMock);
-    //
-    //     validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-    //         configWatch: true,
-    //         linter: linterBuilderMock.linterMock
-    //     }));
-    //
-    //     expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-    //     expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
-    //
-    //     plugin.deactivate();
-    //
-    //     validateInternalData(plugin.internalData, internalDataWhenStopped);
-    //
-    //     expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-    //     expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
-    // });
+    describe('Single Project', () => {
+        describe('Single Session', () => {
+            beforeEach(function initMain() {
+                this.workingDir = Path.join(__dirname, 'fixtures/fullSetup/singleSessionCopy');
+                this.sourceDir = Path.join(__dirname, 'fixtures/fullSetup/singleSession/');
 
-    describe('Linter Tests', () => {
-        describe('Startup and shutdown tests', () => {
-            describe('Single Session', () => {
-                beforeEach(() => {
-                    FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/singleSession/'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/'));
-                    process.chdir(Path.join(__dirname, 'fixtures/fullSetup/singleSessionCopy'));
-                });
+                FsExtra.copySync(this.sourceDir, this.workingDir);
+                atom.project.setPaths([this.workingDir]);
+            });
 
-                afterEach(() => {
-                    process.chdir(Path.join(__dirname, 'fixtures'));
-                    FsExtra.removeSync(Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/'));
-                });
+            afterEach(function teardownMain() {
+                FsExtra.removeSync(this.workingDir);
+            });
 
+            describe('Startup and shutdown tests', () => {
                 describe('RC File starts off undefined', () => {
-                    beforeEach(() => {
-                        FsExtra.removeSync(Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/.rapturelintrc'));
+                    beforeEach(function clearRcFile() {
+                        FsExtra.removeSync(Path.join(this.workingDir, '.rapturelintrc'));
                     });
 
-                    it('base', () => {
+                    it('base', function test() {
                         waitsForPromise(() => new Promise((resolve) => {
                             let linterBuilderMock;
 
@@ -215,7 +202,7 @@ describe('Linter Tests', () => {
                                 },
                                 () => {
                                     validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                        configWatch: true
+                                        watcherOptions: true
                                     }));
 
                                     linterBuilderMock = buidlLinterMock();
@@ -224,8 +211,17 @@ describe('Linter Tests', () => {
                                 },
                                 () => {
                                     validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                        configWatch: true,
-                                        linter: linterBuilderMock.linterMock
+                                        watcherOptions: true,
+                                        linter: linterBuilderMock.linterMock,
+                                        editorGroupContext: true,
+                                        editorContexts: {
+                                            '*': []
+                                        },
+                                        inEditor: {},
+                                        projects: {
+                                            [this.workingDir]: true
+                                        },
+                                        projectListener: true
                                     }));
 
                                     expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
@@ -234,6 +230,8 @@ describe('Linter Tests', () => {
                                     plugin.deactivate();
                                 },
                                 () => {
+                                    validateInternalData(plugin.internalData, internalDataWhenStopped);
+
                                     expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
                                     expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
 
@@ -243,13 +241,13 @@ describe('Linter Tests', () => {
                     });
 
                     describe('RC File becomes defined', () => {
-                        it('File does not exist', () => {
+                        it('File does not exist', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
                                 let linterBuilderMock;
 
                                 runSteps([
                                     () => {
-                                        FsExtra.removeSync(Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                                        FsExtra.removeSync(Path.join(this.workingDir, 'files/test.json'));
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -258,7 +256,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -267,37 +265,46 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
-                                            linter: linterBuilderMock.linterMock
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
                                         expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
                                         expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
                                     },
                                     () => {
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/singleSession/.rapturelintrc'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/.rapturelintrc'));
+                                        FsExtra.copySync(Path.join(this.sourceDir, '.rapturelintrc'), Path.join(this.workingDir, '.rapturelintrc'));
 
                                         console.log('copied');
                                     },
-                                    () => { /* See "Comment 001" at the top of the file */ },
                                     () => {
                                         console.log(plugin.internalData);
 
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            editorContexts: 0,
-                                            inEditor: {}
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
                                         expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
                                         expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith([])).toBe(false);
 
                                         plugin.deactivate();
                                     },
@@ -306,17 +313,17 @@ describe('Linter Tests', () => {
 
                                         expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
                                         expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith([])).toBe(false);
 
                                         resolve();
                                     }]);
                             }));
                         });
 
-                        it('File exists and is valid', () => {
-                            let linterBuilderMock;
-
+                        it('File exists and is valid', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+
                                 runSteps([
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -325,7 +332,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -334,8 +341,17 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
-                                            linter: linterBuilderMock.linterMock
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
                                         expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
@@ -343,40 +359,35 @@ describe('Linter Tests', () => {
 
                                         console.log('setTimeout');
 
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/singleSession/.rapturelintrc'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/.rapturelintrc'));
+                                        FsExtra.copySync(Path.join(this.sourceDir, '.rapturelintrc'), Path.join(this.workingDir, '.rapturelintrc'));
 
                                         console.log('copied');
                                     },
-                                    () => { /* See "Comment 001" at the top of the file */ },
                                     () => {
                                         console.log(plugin.internalData);
 
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }
@@ -384,13 +395,14 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        it('File exists and is invalid', () => {
+                        it('File exists and is invalid', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
                                 let linterBuilderMock;
 
                                 runSteps([
                                     () => {
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(this.workingDir, 'files/test.json'));
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -399,7 +411,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -408,49 +420,52 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
-                                            linter: linterBuilderMock.linterMock
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
                                         expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
                                         expect(linterBuilderMock.linterMock.setMessages.called).toBe(false);
                                     },
                                     () => {
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/singleSession/.rapturelintrc'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/.rapturelintrc'));
+                                        FsExtra.copySync(Path.join(this.sourceDir, '.rapturelintrc'), Path.join(this.workingDir, '.rapturelintrc'));
 
                                         console.log('copied');
                                     },
-                                    () => { /* See "Comment 001" at the top of the file */ },
                                     () => {
                                         console.log(plugin.internalData);
 
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [issueCheck])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }]);
@@ -461,10 +476,11 @@ describe('Linter Tests', () => {
 
                 describe('RC File starts off defined ', () => {
                     describe('File starts off valid', () => {
-                        it('base', () => {
-                            let linterBuilderMock;
-
+                        it('base', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+
                                 runSteps([
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -473,7 +489,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -484,31 +500,27 @@ describe('Linter Tests', () => {
                                         console.log(plugin.internalData);
 
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }
@@ -516,10 +528,11 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        it('becomes invalid', () => {
-                            let linterBuilderMock;
-
+                        it('becomes invalid', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+
                                 runSteps([
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -528,7 +541,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -539,54 +552,47 @@ describe('Linter Tests', () => {
                                         console.log(plugin.internalData);
 
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
                                     },
                                     () => {
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(this.workingDir, '/files/test.json'));
                                     },
-                                    () => { /* See "Comment 001" at the top of the file */ },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [issueCheck])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }
@@ -594,10 +600,11 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        it('is removed', () => {
-                            let linterBuilderMock;
-
+                        it('is removed', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+
                                 runSteps([
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -606,7 +613,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -614,56 +621,51 @@ describe('Linter Tests', () => {
                                         plugin.consumeIndie(linterBuilderMock.registerIndieMock);
                                     },
                                     () => {
-                                        console.log(plugin.internalData);
-
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
                                     },
                                     () => {
-                                        FsExtra.removeSync(Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                                        FsExtra.removeSync(Path.join(this.workingDir, 'files/test.json'));
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        expect(linterBuilderMock.linterMock.dispose.callCount).toBe(1);
+                                        expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(0);
+
+                                        linterBuilderMock.linterMock.dispose.reset();
 
                                         resolve();
                                     }
@@ -673,11 +675,12 @@ describe('Linter Tests', () => {
                     });
 
                     describe('File starts off invalid', () => {
-                        beforeEach(() => {
-                            FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                        beforeEach(function beforeEach() {
+                            FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(this.workingDir, 'files/test.json'));
                         });
 
-                        it('base', () => {
+                        it('base', function test() {
+                            const fileName = Path.join(this.workingDir, 'files\\test.json');
                             let linterBuilderMock;
 
                             waitsForPromise(() => new Promise((resolve) => {
@@ -689,7 +692,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -698,32 +701,27 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(false);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [issueCheck])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }
@@ -731,10 +729,11 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        it('becomes valid', () => {
-                            let linterBuilderMock;
-
+                        it('becomes valid', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+
                                 runSteps([
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
@@ -743,7 +742,7 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true
+                                            watcherOptions: true
                                         }));
 
                                         linterBuilderMock = buidlLinterMock();
@@ -752,50 +751,48 @@ describe('Linter Tests', () => {
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        checkLinterSpies(linterBuilderMock, 'files\\test.json', [issueCheck], false);
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
 
-                                        FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/singleSession/files/test.json'), Path.join(__dirname, './fixtures/fullSetup/singleSessionCopy/files/test.json'));
+                                        FsExtra.copySync(Path.join(this.sourceDir, 'files/test.json'), Path.join(this.workingDir, 'files/test.json'));
                                     },
-                                    () => { /* See "Comment 001" at the top of the file */ },
-                                    () => { /* See "Comment 001" at the top of the file */ },
+                                    // () => { /* See "Comment 001" at the top of the file */ },
+                                    // () => { /* See "Comment 001" at the top of the file */ },
                                     () => {
                                         validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
-                                            configWatch: true,
+                                            watcherOptions: true,
                                             linter: linterBuilderMock.linterMock,
-                                            sessions: 1,
-                                            fileWatchers: 1,
-                                            globs: 1,
                                             editorGroupContext: true,
-                                            currentConfig: true,
-                                            inEditor: {
-                                                'files\\test.json': false
+                                            editorContexts: {
+                                                '*': []
                                             },
-                                            editorContexts: 0
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
                                         }));
 
-                                        checkLinterSpies(linterBuilderMock, 'files\\test.json', [], false);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
 
                                         plugin.deactivate();
                                     },
                                     () => {
                                         validateInternalData(plugin.internalData, internalDataWhenStopped);
 
-                                        expect(linterBuilderMock.linterMock.dispose.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.called).toBe(true);
-                                        expect(linterBuilderMock.linterMock.setMessages.calledWith('files\\test.json', [])).toBe(true);
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
 
                                         resolve();
                                     }
@@ -806,7 +803,7 @@ describe('Linter Tests', () => {
                         xit('is removed', () => {});
                     });
 
-                    describe('becomes undefined', () => {
+                    xdescribe('becomes undefined', () => {
                         xit('File does not exist', () => {});
 
                         xit('File exists and is valid', () => {});
@@ -816,7 +813,123 @@ describe('Linter Tests', () => {
                 });
             });
 
-            xdescribe('Multi Session', () => {});
+            describe('Editor tests', () => {
+                describe('Editor is opened after activation', () => {
+                    describe('File is invalid', () => {
+                        it('base', function test() {
+                            waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+                                let _editor;
+
+                                runSteps([
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        activate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true
+                                        }));
+
+                                        linterBuilderMock = buidlLinterMock();
+
+                                        plugin.consumeIndie(linterBuilderMock.registerIndieMock);
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
+                                    },
+                                    () => {
+                                        atom.workspace.open(fileName).then((editor) => {
+                                            _editor = editor;
+                                        });
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': [],
+                                                [fileName]: true
+                                            },
+                                            inEditor: {},
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        expect(linterBuilderMock.linterMock.dispose.callCount).toBe(0);
+                                        expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(0);
+
+                                        plugin.deactivate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
+
+                                        _editor.destroy();
+                                    },
+                                    () => {
+                                        resolve();
+                                    }
+                                ]);
+                            }));
+                        });
+
+                        xit('closed', () => {});
+                    });
+                });
+
+                describe('Editor is open before activation', () => {
+                    describe('File is invalid', () => {
+                        xit('base', () => {});
+
+                        xit('closed', () => {});
+
+                        xit('second pane is opened for same file', () => {});
+
+                        describe('file is modified in editor to become valid', () => {
+                            xit('base', () => {});
+
+                            xit('saved', () => {});
+
+                            xit('closed not saved', () => {}); // should revert
+                        });
+
+                        describe('file is modified outside editor to become valid', () => {
+                            xit('base', () => {});
+
+                            xit('closed', () => {});
+
+                            describe('changed in editor to and still invalid', () => {
+                                xit('base', () => {});
+
+                                xit('saved', () => {});
+
+                                xit('closed and not saved', () => {});
+                            });
+                        });
+                    });
+                });
+            });
         });
     });
 });
