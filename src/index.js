@@ -24,7 +24,7 @@ export const internalData = {
 
 function closeProjectSessions(project) {
     _.forEach(project.sessions, (session, index) => {
-        session.destroy();
+        session.dispose();
 
         project.sessions[index] = null;
     });
@@ -35,7 +35,7 @@ function closeProjectSessions(project) {
 
 function closeProjectFileWatchers(project) {
     _.forEach(project.fileWatchers, (fileWatcher, index) => {
-        fileWatcher.destroy();
+        fileWatcher.dispose();
 
         project.fileWatchers[index] = null;
     });
@@ -75,8 +75,8 @@ function setupArtifactContext(sessionContext, file, raptureRule, contents) {
             setIssues(artifactContext);
         });
 
-        artifactContext.on('destroy', () => {
-            console.log('setupArtifactContext:onDestroy');
+        artifactContext.on('disposed', () => {
+            console.log('setupArtifactContext:disposed');
 
             internalData.linter.setMessages(artifactContext.id, []);
         });
@@ -161,7 +161,7 @@ function openProjectSessions(project) {
                     const artifactContext = sessionContext.getArtifactContext(file);
 
                     if (!_.isNil(artifactContext)) {
-                        artifactContext.destroy();
+                        artifactContext.dispose();
                     }
                 } else {
                     console.log('fileWatch.onUpdate: Is defined');
@@ -211,6 +211,8 @@ function updateContextLocation(editorContext, oldPath, newPath) {
 
         internalData.editorContexts['*'].push(editorContext);
     }
+
+    editorContext.path = newPath;
 }
 
 function setupOnLoad(editorContext) {
@@ -282,8 +284,8 @@ function setupOnLoad(editorContext) {
 
                 artifactContext.update(contents);
             } else {
-                // The file only existed in the editor. Destroy the artifact context.
-                artifactContext.destroy();
+                // The file only existed in the editor. Dispose the artifact context.
+                artifactContext.dispose();
             }
 
             removedContexts[index] = null;
@@ -382,8 +384,6 @@ function openEditor() {
                 context.dispose();
             });
 
-            internalData.editorContexts = null;
-
             editorSubscription.dispose();
         }
     };
@@ -397,9 +397,9 @@ function openProject(path) {
         currentConfig: null,
         sessions: null,
         globs: null,
-        destroy: () => {
+        dispose: () => {
             if (!_.isNil(project.configWatch)) {
-                project.configWatch.destroy();
+                project.configWatch.dispose();
                 project.configWatch = null;
             }
 
@@ -444,7 +444,7 @@ function updateProjects(openProjectPaths, newProjects) {
 
         if (foundIndex < 0) {
             // the project is no longer open
-            internalData.projects[openPath].destroy();
+            internalData.projects[openPath].dispose();
             internalData.projects[openPath] = null;
         } else {
             // The project is still open
@@ -470,6 +470,8 @@ export function activate(options) {
 }
 
 export function deactivate() {
+    closeEditor();
+
     internalData.projectListener.dispose();
 
     internalData.projectListener = null;
@@ -477,7 +479,7 @@ export function deactivate() {
     internalData.watcherOptions = null;
 
     _.forOwn(internalData.projects, (project, path) => {
-        project.destroy();
+        project.dispose();
 
         internalData.projects[path] = null;
     });
@@ -489,7 +491,7 @@ export function deactivate() {
         internalData.linter = null;
     }
 
-    closeEditor();
+    internalData.editorContexts = null;
 }
 
 export function consumeIndie(registerIndie) {

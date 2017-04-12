@@ -103,7 +103,7 @@ function fileWatch(pattern, path, options) {
 
             return control;
         },
-        destroy: () => {
+        dispose: () => {
             _.forEach(callbacks, (callback, index) => {
                 _.forOwn(current, (contents, file) => {
                     callback(file);

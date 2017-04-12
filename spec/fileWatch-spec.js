@@ -17,9 +17,9 @@ describe('FileWatch Tests', () => {
 
         expect(fileWatch).toBeDefined();
         expect(fileWatch.onUpdate).toBeDefined();
-        expect(fileWatch.destroy).toBeDefined();
+        expect(fileWatch.dispose).toBeDefined();
 
-        fileWatch.destroy();
+        fileWatch.dispose();
     });
 
     it('Never calls onUpdate when no files exist', () => {
@@ -46,7 +46,7 @@ describe('FileWatch Tests', () => {
                     if (instance === 0) {
                         instance += 1;
 
-                        fileWatch.destroy();
+                        fileWatch.dispose();
                     } else {
                         clearInterval();
 
@@ -91,7 +91,7 @@ describe('FileWatch Tests', () => {
                         called = false;
                         expectContents = undefined;
 
-                        fileWatch.destroy();
+                        fileWatch.dispose();
                     } else {
                         clearInterval(testInterval);
 
@@ -104,7 +104,7 @@ describe('FileWatch Tests', () => {
         );
     });
 
-    it('Calls onUpdate when a file exists on a double watcher when one is destroyed', () => {
+    it('Calls onUpdate when a file exists on a double watcher when one is disposeed', () => {
         waitsForPromise(() =>
             new Promise((resolve) => {
                 const testPath = Path.join(__dirname, 'fixtures/testFiles/singleFile');
@@ -151,7 +151,7 @@ describe('FileWatch Tests', () => {
                         calledB = false;
                         expectContentsA = undefined;
 
-                        fileWatchA.destroy();
+                        fileWatchA.dispose();
                     } else {
                         expect(calledA).toBe(true);
                         expect(calledB).toBe(false);
@@ -166,7 +166,7 @@ describe('FileWatch Tests', () => {
         );
     });
 
-    it('Calls onUpdate when a file exists on a double watcher when both are destroyed', () => {
+    it('Calls onUpdate when a file exists on a double watcher when both are disposeed', () => {
         waitsForPromise(() =>
             new Promise((resolve) => {
                 const testPath = Path.join(__dirname, 'fixtures/testFiles/singleFile');
@@ -213,8 +213,8 @@ describe('FileWatch Tests', () => {
                         calledB = false;
                         expectContents = undefined;
 
-                        fileWatchA.destroy();
-                        fileWatchB.destroy();
+                        fileWatchA.dispose();
+                        fileWatchB.dispose();
                     } else {
                         clearInterval(testInterval);
 

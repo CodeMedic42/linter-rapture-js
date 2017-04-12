@@ -19,7 +19,7 @@ const internalDataWhenStopped = {
     projectListener: null
 };
 
-const stepInterval = 100;
+const stepInterval = 200;
 
 function runSteps(steps, counter) {
     let _counter = counter;
@@ -190,7 +190,7 @@ describe('Linter Tests', () => {
                         FsExtra.removeSync(Path.join(this.workingDir, '.rapturelintrc'));
                     });
 
-                    it('base', function test() {
+                    xit('base', function test() {
                         waitsForPromise(() => new Promise((resolve) => {
                             let linterBuilderMock;
 
@@ -217,7 +217,6 @@ describe('Linter Tests', () => {
                                         editorContexts: {
                                             '*': []
                                         },
-                                        inEditor: {},
                                         projects: {
                                             [this.workingDir]: true
                                         },
@@ -241,7 +240,7 @@ describe('Linter Tests', () => {
                     });
 
                     describe('RC File becomes defined', () => {
-                        it('File does not exist', function test() {
+                        xit('File does not exist', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
                                 let linterBuilderMock;
 
@@ -271,7 +270,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -296,7 +294,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -319,7 +316,7 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        it('File exists and is valid', function test() {
+                        xit('File exists and is valid', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
                                 const fileName = Path.join(this.workingDir, 'files\\test.json');
                                 let linterBuilderMock;
@@ -347,7 +344,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -373,7 +369,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -426,7 +421,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -451,7 +445,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -506,7 +499,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -558,7 +550,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -578,7 +569,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -628,7 +618,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -648,7 +637,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -707,7 +695,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -757,7 +744,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -778,7 +764,6 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -803,7 +788,7 @@ describe('Linter Tests', () => {
                         xit('is removed', () => {});
                     });
 
-                    xdescribe('becomes undefined', () => {
+                    describe('becomes undefined', () => {
                         xit('File does not exist', () => {});
 
                         xit('File exists and is valid', () => {});
@@ -816,7 +801,11 @@ describe('Linter Tests', () => {
             describe('Editor tests', () => {
                 describe('Editor is opened after activation', () => {
                     describe('File is invalid', () => {
-                        it('base', function test() {
+                        beforeEach(function beforeEach() {
+                            FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(this.workingDir, 'files/test.json'));
+                        });
+
+                        it('Closed after deactivation', function test() {
                             waitsForPromise(() => new Promise((resolve) => {
                                 const fileName = Path.join(this.workingDir, 'files\\test.json');
                                 let linterBuilderMock;
@@ -845,14 +834,13 @@ describe('Linter Tests', () => {
                                             editorContexts: {
                                                 '*': []
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
                                             projectListener: true
                                         }));
 
-                                        checkLinterSpies(linterBuilderMock, fileName, [], 0);
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
                                     },
                                     () => {
                                         atom.workspace.open(fileName).then((editor) => {
@@ -868,7 +856,6 @@ describe('Linter Tests', () => {
                                                 '*': [],
                                                 [fileName]: true
                                             },
-                                            inEditor: {},
                                             projects: {
                                                 [this.workingDir]: true
                                             },
@@ -894,13 +881,172 @@ describe('Linter Tests', () => {
                             }));
                         });
 
-                        xit('closed', () => {});
+                        it('Closed before deactivation', function test() {
+                            waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+                                let _editor;
+
+                                runSteps([
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        activate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true
+                                        }));
+
+                                        linterBuilderMock = buidlLinterMock();
+
+                                        plugin.consumeIndie(linterBuilderMock.registerIndieMock);
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
+                                    },
+                                    () => {
+                                        atom.workspace.open(fileName).then((editor) => {
+                                            _editor = editor;
+                                        });
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': [],
+                                                [fileName]: true
+                                            },
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        expect(linterBuilderMock.linterMock.dispose.callCount).toBe(0);
+                                        expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(0);
+
+                                        _editor.destroy();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': []
+                                            },
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        expect(linterBuilderMock.linterMock.dispose.callCount).toBe(0);
+                                        expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(0);
+
+                                        plugin.deactivate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
+
+                                        _editor.destroy();
+                                    },
+                                    () => {
+                                        resolve();
+                                    }
+                                ]);
+                            }));
+                        });
                     });
                 });
 
                 describe('Editor is open before activation', () => {
                     describe('File is invalid', () => {
-                        xit('base', () => {});
+                        beforeEach(function beforeEach() {
+                            FsExtra.copySync(Path.join(__dirname, 'fixtures/fullSetup/invalidFile/test.json'), Path.join(this.workingDir, 'files/test.json'));
+                        });
+
+                        it('Closed after deactivation', function test() {
+                            waitsForPromise(() => new Promise((resolve) => {
+                                const fileName = Path.join(this.workingDir, 'files\\test.json');
+                                let linterBuilderMock;
+                                let _editor;
+
+                                runSteps([
+                                    () => {
+                                        atom.workspace.open(fileName).then((editor) => {
+                                            _editor = editor;
+                                        });
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        activate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true
+                                        }));
+
+                                        linterBuilderMock = buidlLinterMock();
+
+                                        plugin.consumeIndie(linterBuilderMock.registerIndieMock);
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, _.merge({}, internalDataWhenStopped, {
+                                            watcherOptions: true,
+                                            linter: linterBuilderMock.linterMock,
+                                            editorGroupContext: true,
+                                            editorContexts: {
+                                                '*': [],
+                                                [fileName]: true
+                                            },
+                                            projects: {
+                                                [this.workingDir]: true
+                                            },
+                                            projectListener: true
+                                        }));
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [buildIssueCheck(this.workingDir)], 0);
+
+                                        plugin.deactivate();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        checkLinterSpies(linterBuilderMock, fileName, [], 1);
+
+                                        _editor.destroy();
+                                    },
+                                    () => {
+                                        validateInternalData(plugin.internalData, internalDataWhenStopped);
+
+                                        expect(linterBuilderMock.linterMock.dispose.callCount).toBe(0);
+                                        expect(linterBuilderMock.linterMock.setMessages.callCount).toBe(0);
+
+                                        resolve();
+                                    }
+                                ]);
+                            }));
+                        });
 
                         xit('closed', () => {});
 

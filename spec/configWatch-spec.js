@@ -57,9 +57,9 @@ describe('ConfigWatch Tests', () => {
 
         expect(configWatch).toBeDefined();
         expect(configWatch.onUpdate).toBeDefined();
-        expect(configWatch.destroy).toBeDefined();
+        expect(configWatch.dispose).toBeDefined();
 
-        configWatch.destroy();
+        configWatch.dispose();
     });
 
     it('Calls onUpdate with null on start when file does not exist', () => {
@@ -80,7 +80,7 @@ describe('ConfigWatch Tests', () => {
                     if (instance === 0) {
                         instance += 1;
 
-                        configWatch.destroy();
+                        configWatch.dispose();
                     } else if (instance === 1) {
                         resolve();
                     }
@@ -114,7 +114,7 @@ describe('ConfigWatch Tests', () => {
                         validateConfigData(configValue, 1);
                         validateFirstSession(configValue);
 
-                        configWatch.destroy();
+                        configWatch.dispose();
                     } else {
                         expect(configValue).toBe(null);
 
@@ -172,7 +172,7 @@ describe('ConfigWatch Tests', () => {
                             validateConfigData(configValue, 1);
                             validateFirstSession(configValue);
 
-                            configWatch.destroy();
+                            configWatch.dispose();
                         } else {
                             console.log('onUpdate: 2');
                             expect(configValue).toBe(null);
@@ -229,7 +229,7 @@ describe('ConfigWatch Tests', () => {
                             validateFirstSession(configValue);
                             validateSecondSession(configValue);
 
-                            configWatch.destroy();
+                            configWatch.dispose();
                         } else {
                             expect(configValue).toBe(null);
 
@@ -273,7 +273,7 @@ describe('ConfigWatch Tests', () => {
 
                             expect(configValue).toBe(null);
 
-                            configWatch.destroy();
+                            configWatch.dispose();
                         } else {
                             expect(configValue).toBe(null);
 

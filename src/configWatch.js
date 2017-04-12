@@ -103,8 +103,8 @@ function configWatch(path, options) {
 
             return control;
         },
-        destroy: () => {
-            console.log('config destroy');
+        dispose: () => {
+            console.log('config dispose');
             _.forEach(callbacks, (callback, index) => {
                 callback(null);
                 callback[index] = null;
