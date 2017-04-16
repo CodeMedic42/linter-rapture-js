@@ -1,0 +1,10 @@
+{
+    "sessions": [{
+        "id": "sessionIDA",
+        "rules": [{
+            "id": "ruleIDA",
+            "rapture": "./simpleJs.js",
+            "pattern": "**/*.json"
+        }]
+    }]
+}
