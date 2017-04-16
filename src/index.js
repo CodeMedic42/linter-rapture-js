@@ -2,11 +2,9 @@
 
 // eslint-disable-next-line
 import { CompositeDisposable } from 'atom';
-// import Path from 'path';
-// eslint-disable-next-line
 import FsExtra from 'fs-extra';
-// import Path from 'path';
-import Rapture from 'C:/Users/cmicle/Desktop/Rapture/Current/3 - scope working/src';
+import Rapture from 'rapture-js';
+// import Rapture from 'C:/Users/cmicle/Desktop/Rapture/Current/2 - Redesigning logicDefinition structure/src';
 import _ from 'lodash';
 import Path from 'path';
 import Minimatch from 'minimatch';
