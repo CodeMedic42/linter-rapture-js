@@ -1,9 +1,9 @@
 {
   "name": "linter-rapture-js",
-  "main": "lib/index.js",
+  "main": "src/index.js",
   "version": "0.0.1",
-  "private": true,
-  "description": "My Linter Package",
+  "private": false,
+  "description": "Linter using Rapture-JS",
   "scripts": {
     "test": "apm test",
     "lint": "eslint .",
@@ -12,9 +12,21 @@
     "build": "npm run clean && babel ./src --out-dir ./lib"
   },
   "keywords": [
+    "linter",
+    "validation",
     "linter-rapture",
     "json"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodeMedic42/linter-rapture-js.git"
+  },
+  "author": "CodeMedic42",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/CodeMedic42/linter-rapture-js/issues"
+  },
+  "homepage": "https://github.com/CodeMedic42/linter-rapture-js#readme",
   "engines": {
     "atom": ">=1.4.0 <2.0.0"
   },
@@ -31,7 +43,7 @@
     "fs-extra": "^2.1.2",
     "lodash": "^4.17.4",
     "minimatch": "^3.0.3",
-    "rapture-js": "0.0.2"
+    "rapture-js": "0.0.3"
   },
   "devDependencies": {
     "babel-cli": "^6.24.0",
