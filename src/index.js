@@ -4,7 +4,6 @@
 import { CompositeDisposable } from 'atom';
 import FsExtra from 'fs-extra';
 import Rapture from 'rapture-js';
-// import Rapture from 'C:/Users/cmicle/Desktop/Rapture/Current/2 - Redesigning logicDefinition structure/src';
 import _ from 'lodash';
 import Path from 'path';
 import Minimatch from 'minimatch';
