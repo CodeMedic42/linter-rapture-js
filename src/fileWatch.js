@@ -8,12 +8,21 @@ import FS from 'fs';
 
 const fsPromise = Promise.promisifyAll(FS);
 
+function handleError(err) {
+    console.error(err);
+
+    atom.notifications.addError('linter-rapture-js', {
+        dismissable: true,
+        detail: err.message
+    });
+}
+
 function readFile(path, fileName) {
     return fsPromise.readFileAsync(Path.join(path, fileName)).then((contents) => {
         const c = contents.toString();
         return c;
     }).catch((err) => {
-        console.log(err.message);
+        handleError(err);
 
         return null;
     });
@@ -65,7 +74,7 @@ function fileWatch(pattern, path, options) {
 
             callCallbacks(callbacks, _file, contents);
         }).catch((err) => {
-            console.log(err.message);
+            handleError(err);
 
             return null;
         });

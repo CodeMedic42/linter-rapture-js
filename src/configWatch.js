@@ -9,6 +9,15 @@ import FS from 'fs';
 const fsPromise = Promise.promisifyAll(FS);
 const configFileName = '.rapturelintrc';
 
+function handleError(err) {
+    console.error(err);
+
+    atom.notifications.addError('linter-rapture-js', {
+        dismissable: true,
+        detail: err.message
+    });
+}
+
 function validateRule() {}
 
 function parseConfig(path, filePath) {
@@ -28,7 +37,7 @@ function parseConfig(path, filePath) {
 
         return config;
     }).catch((err) => {
-        console.log(err.message);
+        handleError(err);
 
         return null;
     });
@@ -73,7 +82,7 @@ function configWatch(path, options) {
 
             callCallbacks(callbacks, config);
         }).catch((err) => {
-            console.log(err.message);
+            handleError(err);
 
             return null;
         });
