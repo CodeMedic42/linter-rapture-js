@@ -1,0 +1,10 @@
+{
+    "sessions": [{
+        "id": "package.json",
+        "rules": [{
+            "id": "package.json",
+            "rapture": "./package.json.rule.js",
+            "pattern": "package.json"
+        }]
+    }]
+}

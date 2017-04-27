@@ -1,0 +1,14 @@
+{
+  "name": "lexer",
+  "version": "0.0.1",
+  "description": "Example of using Rapture for simple json validation",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "CodeMedic42",
+  "license": "ISC",
+  "dependencies": {
+    "lodash": "^4.17.4",
+    "rapture-js": "0.0.4"
+  }
+}
