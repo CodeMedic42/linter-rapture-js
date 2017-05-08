@@ -143,6 +143,10 @@ function openProjectSessions(project) {
         project.sessions.push(sessionContext);
 
         _.forEach(session.rules, (rule) => {
+            if (_.isBoolean(rule.enabled) && !rule.enabled) {
+                return;
+            }
+
             console.log('fileWatch: setup');
 
             setupGlobList(project, sessionContext, rule);
