@@ -1,11 +1,24 @@
 const Rapture = require('rapture-js');
 
-module.exports = Rapture.object().keys({
-    foo: Rapture.array().items(Rapture.scope(Rapture.object().keys({
-        bar: Rapture.string().register({
-            id: 'barValue',
-            scope: '__working'
-        }),
-        baz: Rapture.string().registered()
-    })))
-});
+const RemixRule = Rapture.any();
+
+function load() {
+    const session = Rapture.createSessionContext();
+
+    const pluginContext = {
+        dispose: () =>
+            session.dispose(),
+        rules: {
+            lexer: (id, data) =>
+                session.createArtifactContext(id, RemixRule, data)
+        },
+        getArtifactContext: id =>
+            session.getArtifactContext(id),
+        issues: () =>
+            session.issues()
+    };
+
+    return pluginContext;
+}
+
+module.exports = load;

@@ -3,7 +3,7 @@
 // eslint-disable-next-line
 import { CompositeDisposable } from 'atom';
 import FsExtra from 'fs-extra';
-import Rapture from 'rapture-js';
+// import Rapture from 'rapture-js';
 import _ from 'lodash';
 import Path from 'path';
 import Minimatch from 'minimatch';
@@ -50,8 +50,6 @@ function closeProjectFileWatchers(project) {
 }
 
 function setIssues(artifactContext) {
-    console.log('setIssues');
-
     const messages = _.reduce(artifactContext.issues(), (reduc, issue) => {
         reduc.push({
             severity: issue.severity,
@@ -68,33 +66,24 @@ function setIssues(artifactContext) {
     internalData.linter.setMessages(artifactContext.id, messages);
 }
 
-function setupArtifactContext(sessionContext, file, raptureRule, contents) {
-    console.log('setupArtifactContext');
+function setupArtifactContext(sessionContext, file, artifactContextCreator, contents) {
     let artifactContext = sessionContext.getArtifactContext(file);
 
     if (artifactContext == null) {
-        artifactContext = sessionContext.createArtifactContext(file, raptureRule, contents);
+        artifactContext = artifactContextCreator(file, contents);
 
         artifactContext.on('raise', () => {
-            console.log('setupArtifactContext:onRaise');
-
             setIssues(artifactContext);
         });
 
         artifactContext.on('disposed', () => {
-            console.log('setupArtifactContext:disposed');
-
             internalData.linter.setMessages(artifactContext.id, []);
         });
-
-        console.log('setupArtifactContext:inital Setup');
 
         setIssues(artifactContext);
 
         return artifactContext;
     }
-
-    console.log('setupArtifactContext:update');
 
     artifactContext.update(contents);
 
@@ -114,17 +103,17 @@ function fillOpenEditors(sessionContext, glob) {
         const text = editorContext.textEditor.getText();
 
         // New file!
-        const artifactContext = setupArtifactContext(sessionContext, editorContext.path, glob.rule, text);
+        const artifactContext = setupArtifactContext(sessionContext, editorContext.path, glob.artifactContextCreator, text);
 
         editorContext.artifactContexts.push(artifactContext);
     });
 }
 
-function setupGlobList(project, sessionContext, rule) {
+function setupGlobList(project, sessionContext, pattern, artifactContextCreator) {
     const glob = {
         sessionContext,
-        pattern: Path.join(project.path, rule.pattern),
-        rule: rule.rapture
+        pattern: Path.join(project.path, pattern),
+        artifactContextCreator
     };
 
     project.globs.push(glob);
@@ -138,30 +127,21 @@ function openProjectSessions(project) {
     project.globs = [];
 
     _.forEach(project.currentConfig.sessions, (session) => {
-        const sessionContext = Rapture.createSessionContext();
+        const sessionContext = session.context();
+        // const sessionContext = Rapture.createSessionContext();
 
         project.sessions.push(sessionContext);
 
-        _.forEach(session.rules, (rule) => {
-            if (_.isBoolean(rule.enabled) && !rule.enabled) {
-                return;
-            }
+        _.forOwn(session.files, (ruleId, filePattern) => {
+            setupGlobList(project, sessionContext, filePattern, sessionContext.rules[ruleId]);
 
-            console.log('fileWatch: setup');
-
-            setupGlobList(project, sessionContext, rule);
-
-            const fileWatch = FileWatch(rule.pattern, project.path, internalData.watcherOptions);
+            const fileWatch = FileWatch(filePattern, project.path, internalData.watcherOptions);
 
             project.fileWatchers.push(fileWatch);
-
-            console.log('fileWatch.onUpdate: setup');
 
             fileWatch.onUpdate((file, contents) => {
                 try {
                     if (_.isUndefined(contents)) {
-                        console.log('fileWatch.onUpdate: undefined');
-
                         if (internalData.editorContexts[file]) {
                             // The file has been deleted or we are no longer watching it.
                             // Either way we need to leave the artifact context alone for the editor.
@@ -174,14 +154,11 @@ function openProjectSessions(project) {
                         if (!_.isNil(artifactContext)) {
                             artifactContext.dispose();
                         }
-                    } else {
-                        console.log('fileWatch.onUpdate: Is defined');
-
+                    } else if (!internalData.editorContexts[file]) {
                         // If the file is open in atom then do nothing. We are getting our data from atom directly.
-                        if (!internalData.editorContexts[file]) {
-                            // otherwise lets load it
-                            setupArtifactContext(sessionContext, file, rule.rapture, contents);
-                        }
+
+                        // otherwise lets load it
+                        setupArtifactContext(sessionContext, file, sessionContext.rules[ruleId], contents);
                     }
                 } catch (err) {
                     handleError(err);
@@ -270,12 +247,10 @@ function setupOnLoad(editorContext) {
                 // The file no longer matches
                 removedContexts.push(sessionContext);
             } else if (newMatch) {
-                console.log('setupOnLoad: is new match');
-
                 const text = editorContext.textEditor.getText();
 
                 // New file!
-                const context = setupArtifactContext(sessionContext, newPath, glob.rule, text);
+                const context = setupArtifactContext(sessionContext, newPath, glob.artifactContextCreator, text);
 
                 editorContext.artifactContexts.push(context);
             }

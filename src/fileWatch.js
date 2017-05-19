@@ -52,11 +52,8 @@ function fileWatch(pattern, path, options) {
 
     const watcher = Chokidar.watch(pattern, _options);
 
-    console.log('fileWatch event setup');
-
     watcher
     .on('add', (file) => {
-        console.log('fileWatch.add');
         readFile(_options.cwd, file).then((contents) => {
             const _file = Path.join(_options.cwd, file);
 
@@ -66,7 +63,6 @@ function fileWatch(pattern, path, options) {
         });
     })
     .on('change', (file) => {
-        console.log('fileWatch.change');
         readFile(_options.cwd, file).then((contents) => {
             const _file = Path.join(_options.cwd, file);
 
@@ -80,8 +76,6 @@ function fileWatch(pattern, path, options) {
         });
     })
     .on('unlink', (file) => {
-        console.log('fileWatch.unlink');
-
         const _file = Path.join(_options.cwd, file);
 
         delete current[_file];
@@ -89,8 +83,6 @@ function fileWatch(pattern, path, options) {
         callCallbacks(callbacks, _file, undefined);
     })
     .on('error', (error, file) => {
-        console.log('fileWatch.error');
-
         if (FS.existsSync(Path.join(_options.cwd, file))) {
             console.log(`Watcher error: ${error}`);
         }

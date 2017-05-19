@@ -1,10 +1,8 @@
 {
     "sessions": [{
-        "id": "lexerSession",
-        "rules": [{
-            "id": "lexerRule",
-            "rapture": "./remix.workflow.rule.js",
-            "pattern": "lexer.json"
-        }]
+        "context": "./lexer.rule.js",
+        "files": {
+            "lexer.json": "lexer"
+        }
     }]
 }
