@@ -27,7 +27,7 @@ function parseConfig(path, filePath) {
             const contextResolution = Resolve.sync(session.context, { basedir: path });
 
             // eslint-disable-next-line import/no-dynamic-require
-            session.context = require(contextResolution);
+            session.context = require(contextResolution).load;
         });
 
         return config;
