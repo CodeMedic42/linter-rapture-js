@@ -1,7 +1,7 @@
 {
   "name": "linter-rapture-js",
   "main": "src/index.js",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "private": false,
   "description": "Linter using Rapture-JS",
   "scripts": {
@@ -40,7 +40,7 @@
     "fs-extra": "^2.1.2",
     "lodash": "^4.17.4",
     "minimatch": "^3.0.3",
-    "rapture-js": "0.0.4"
+    "resolve": "^1.3.3"
   },
   "devDependencies": {
     "babel-cli": "^6.24.0",

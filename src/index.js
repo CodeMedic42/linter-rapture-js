@@ -3,12 +3,21 @@
 // eslint-disable-next-line
 import { CompositeDisposable } from 'atom';
 import FsExtra from 'fs-extra';
-import Rapture from 'rapture-js';
+// import Rapture from 'rapture-js';
 import _ from 'lodash';
 import Path from 'path';
 import Minimatch from 'minimatch';
 import ConfigWatch from './configWatch';
 import FileWatch from './fileWatch';
+
+function handleError(err) {
+    console.error(err);
+
+    atom.notifications.addError('linter-rapture-js', {
+        dismissable: true,
+        detail: err.message
+    });
+}
 
 export const internalData = {
     editorContexts: null,
@@ -41,8 +50,6 @@ function closeProjectFileWatchers(project) {
 }
 
 function setIssues(artifactContext) {
-    console.log('setIssues');
-
     const messages = _.reduce(artifactContext.issues(), (reduc, issue) => {
         reduc.push({
             severity: issue.severity,
@@ -59,33 +66,24 @@ function setIssues(artifactContext) {
     internalData.linter.setMessages(artifactContext.id, messages);
 }
 
-function setupArtifactContext(sessionContext, file, raptureRule, contents) {
-    console.log('setupArtifactContext');
+function setupArtifactContext(sessionContext, file, artifactContextCreator, contents) {
     let artifactContext = sessionContext.getArtifactContext(file);
 
     if (artifactContext == null) {
-        artifactContext = sessionContext.createArtifactContext(file, raptureRule, contents);
+        artifactContext = artifactContextCreator(file, contents);
 
         artifactContext.on('raise', () => {
-            console.log('setupArtifactContext:onRaise');
-
             setIssues(artifactContext);
         });
 
         artifactContext.on('disposed', () => {
-            console.log('setupArtifactContext:disposed');
-
             internalData.linter.setMessages(artifactContext.id, []);
         });
-
-        console.log('setupArtifactContext:inital Setup');
 
         setIssues(artifactContext);
 
         return artifactContext;
     }
-
-    console.log('setupArtifactContext:update');
 
     artifactContext.update(contents);
 
@@ -105,17 +103,17 @@ function fillOpenEditors(sessionContext, glob) {
         const text = editorContext.textEditor.getText();
 
         // New file!
-        const artifactContext = setupArtifactContext(sessionContext, editorContext.path, glob.rule, text);
+        const artifactContext = setupArtifactContext(sessionContext, editorContext.path, glob.artifactContextCreator, text);
 
         editorContext.artifactContexts.push(artifactContext);
     });
 }
 
-function setupGlobList(project, sessionContext, rule) {
+function setupGlobList(project, sessionContext, pattern, artifactContextCreator) {
     const glob = {
         sessionContext,
-        pattern: Path.join(project.path, rule.pattern),
-        rule: rule.rapture
+        pattern: Path.join(project.path, pattern),
+        artifactContextCreator
     };
 
     project.globs.push(glob);
@@ -129,45 +127,41 @@ function openProjectSessions(project) {
     project.globs = [];
 
     _.forEach(project.currentConfig.sessions, (session) => {
-        const sessionContext = Rapture.createSessionContext();
+        const sessionContext = session.context();
+        // const sessionContext = Rapture.createSessionContext();
 
         project.sessions.push(sessionContext);
 
-        _.forEach(session.rules, (rule) => {
-            console.log('fileWatch: setup');
+        _.forOwn(session.files, (ruleId, filePattern) => {
+            setupGlobList(project, sessionContext, filePattern, sessionContext.rules[ruleId]);
 
-            setupGlobList(project, sessionContext, rule);
-
-            const fileWatch = FileWatch(rule.pattern, project.path, internalData.watcherOptions);
+            const fileWatch = FileWatch(filePattern, project.path, internalData.watcherOptions);
 
             project.fileWatchers.push(fileWatch);
 
-            console.log('fileWatch.onUpdate: setup');
-
             fileWatch.onUpdate((file, contents) => {
-                if (_.isUndefined(contents)) {
-                    console.log('fileWatch.onUpdate: undefined');
+                try {
+                    if (_.isUndefined(contents)) {
+                        if (internalData.editorContexts[file]) {
+                            // The file has been deleted or we are no longer watching it.
+                            // Either way we need to leave the artifact context alone for the editor.
+                            return;
+                        }
 
-                    if (internalData.editorContexts[file]) {
-                        // The file has been deleted or we are no longer watching it.
-                        // Either way we need to leave the artifact context alone for the editor.
-                        return;
-                    }
+                        // Destroy the artifact context for this file.
+                        const artifactContext = sessionContext.getArtifactContext(file);
 
-                    // Destroy the artifact context for this file.
-                    const artifactContext = sessionContext.getArtifactContext(file);
+                        if (!_.isNil(artifactContext)) {
+                            artifactContext.dispose();
+                        }
+                    } else if (!internalData.editorContexts[file]) {
+                        // If the file is open in atom then do nothing. We are getting our data from atom directly.
 
-                    if (!_.isNil(artifactContext)) {
-                        artifactContext.dispose();
-                    }
-                } else {
-                    console.log('fileWatch.onUpdate: Is defined');
-
-                    // If the file is open in atom then do nothing. We are getting our data from atom directly.
-                    if (!internalData.editorContexts[file]) {
                         // otherwise lets load it
-                        setupArtifactContext(sessionContext, file, rule.rapture, contents);
+                        setupArtifactContext(sessionContext, file, sessionContext.rules[ruleId], contents);
                     }
+                } catch (err) {
+                    handleError(err);
                 }
             });
         });
@@ -253,12 +247,10 @@ function setupOnLoad(editorContext) {
                 // The file no longer matches
                 removedContexts.push(sessionContext);
             } else if (newMatch) {
-                console.log('setupOnLoad: is new match');
-
                 const text = editorContext.textEditor.getText();
 
                 // New file!
-                const context = setupArtifactContext(sessionContext, newPath, glob.rule, text);
+                const context = setupArtifactContext(sessionContext, newPath, glob.artifactContextCreator, text);
 
                 editorContext.artifactContexts.push(context);
             }
@@ -306,7 +298,11 @@ function setupEditorContext(editorContext) {
     });
 
     const onDidChangePathSubscription = editorContext.textEditor.onDidChangePath(() => {
-        setupOnLoad(editorContext);
+        try {
+            setupOnLoad(editorContext);
+        } catch (err) {
+            handleError(err);
+        }
     });
 
     editorContext.subscriptions.push(() => {
@@ -314,11 +310,15 @@ function setupEditorContext(editorContext) {
     });
 
     const onDidStopChangingSubscription = editorContext.textEditor.onDidStopChanging(() => {
-        const test = editorContext.textEditor.getText();
+        try {
+            const text = editorContext.textEditor.getText();
 
-        _.forEach(editorContext.artifactContexts, (context) => {
-            context.update(test);
-        });
+            _.forEach(editorContext.artifactContexts, (context) => {
+                context.update(text);
+            });
+        } catch (err) {
+            handleError(err);
+        }
     });
 
     editorContext.subscriptions.push(() => {
@@ -326,7 +326,11 @@ function setupEditorContext(editorContext) {
     });
 
     const onDidDestroySubscription = editorContext.textEditor.onDidDestroy(() => {
-        editorContext.dispose();
+        try {
+            editorContext.dispose();
+        } catch (err) {
+            handleError(err);
+        }
     });
 
     editorContext.subscriptions.push(() => {
@@ -407,17 +411,21 @@ function openProject(path) {
     };
 
     project.configWatch.onUpdate((config) => {
-        if (_.isNil(config) && _.isNil(project.currentConfig)) {
-            // No need to rerun if both are nill
-            return;
-        }
+        try {
+            if (_.isNil(config) && _.isNil(project.currentConfig)) {
+                // No need to rerun if both are nill
+                return;
+            }
 
-        project.currentConfig = config;
+            project.currentConfig = config;
 
-        cleanUpProject(project);
+            cleanUpProject(project);
 
-        if (project.currentConfig != null) {
-            openProjectSessions(project);
+            if (project.currentConfig != null) {
+                openProjectSessions(project);
+            }
+        } catch (err) {
+            handleError(err);
         }
     });
 
@@ -463,50 +471,62 @@ function updateProjects(openProjectPaths, newProjects) {
 }
 
 export function activate(options) {
-    internalData.watcherOptions = options;
+    try {
+        internalData.watcherOptions = options;
+    } catch (err) {
+        handleError(err);
+    }
 }
 
 export function deactivate() {
-    closeEditor();
+    try {
+        closeEditor();
 
-    internalData.projectListener.dispose();
+        internalData.projectListener.dispose();
 
-    internalData.projectListener = null;
+        internalData.projectListener = null;
 
-    internalData.watcherOptions = null;
+        internalData.watcherOptions = null;
 
-    _.forOwn(internalData.projects, (project, path) => {
-        project.dispose();
+        _.forOwn(internalData.projects, (project, path) => {
+            project.dispose();
 
-        internalData.projects[path] = null;
-    });
+            internalData.projects[path] = null;
+        });
 
-    internalData.projects = null;
+        internalData.projects = null;
 
-    if (!_.isNil(internalData.linter)) {
-        internalData.linter.dispose();
-        internalData.linter = null;
+        if (!_.isNil(internalData.linter)) {
+            internalData.linter.dispose();
+            internalData.linter = null;
+        }
+
+        internalData.editorContexts = null;
+    } catch (err) {
+        handleError(err);
     }
-
-    internalData.editorContexts = null;
 }
 
 export function consumeIndie(registerIndie) {
-    internalData.linter = registerIndie({
-        name: 'Json'
-    });
+    try {
+        internalData.linter = registerIndie({
+            name: 'Json'
+        });
 
-    internalData.projects = {};
+        internalData.projects = {};
 
-    openEditor();
+        openEditor();
 
-    let openProjectPaths = atom.project.getPaths();
+        let openProjectPaths = atom.project.getPaths();
 
-    _.forEach(openProjectPaths, (openProjectPath) => {
-        openProject(openProjectPath);
-    });
+        _.forEach(openProjectPaths, (openProjectPath) => {
+            openProject(openProjectPath);
+        });
 
-    internalData.projectListener = atom.project.onDidChangePaths((newProjects) => {
-        openProjectPaths = updateProjects(openProjectPaths, newProjects);
-    });
+        internalData.projectListener = atom.project.onDidChangePaths((newProjects) => {
+            openProjectPaths = updateProjects(openProjectPaths, newProjects);
+        });
+    } catch (err) {
+        handleError(err);
+    }
 }

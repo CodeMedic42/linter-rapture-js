@@ -1,0 +1,8 @@
+{
+    "sessions": [{
+        "context": "./lexer.rule.js",
+        "files": {
+            "lexer.json": "lexer"
+        }
+    }]
+}

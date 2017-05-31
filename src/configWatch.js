@@ -5,30 +5,34 @@ import Chokidar from 'chokidar';
 import Path from 'path';
 import Promise from 'bluebird';
 import FS from 'fs';
+import Resolve from 'resolve';
 
 const fsPromise = Promise.promisifyAll(FS);
 const configFileName = '.rapturelintrc';
 
-function validateRule() {}
+function handleError(err) {
+    console.error(err);
+
+    atom.notifications.addError('linter-rapture-js', {
+        dismissable: true,
+        detail: err.message
+    });
+}
 
 function parseConfig(path, filePath) {
     return fsPromise.readFileAsync(filePath).then((contents) => {
         const config = JSON.parse(contents.toString());
 
         _.forEach(config.sessions, (session) => {
-            _.forEach(session.rules, (rule) => {
-                validateRule(rule);
+            const contextResolution = Resolve.sync(session.context, { basedir: path });
 
-                const rapFile = Path.join(path, rule.rapture);
-
-                // eslint-disable-next-line import/no-dynamic-require
-                rule.rapture = require(rapFile);
-            });
+            // eslint-disable-next-line import/no-dynamic-require
+            session.context = require(contextResolution);
         });
 
         return config;
     }).catch((err) => {
-        console.log(err.message);
+        handleError(err);
 
         return null;
     });
@@ -55,11 +59,8 @@ function configWatch(path, options) {
     const filePath = Path.join(_options.cwd, configFileName);
     const watcher = Chokidar.watch(configFileName, _options);
 
-    console.log('config setup');
-
     watcher
     .on('add', () => {
-        console.log('config add');
         parseConfig(_options.cwd, filePath).then((config) => {
             current = config;
 
@@ -67,25 +68,22 @@ function configWatch(path, options) {
         });
     })
     .on('change', () => {
-        console.log('config change');
         parseConfig(_options.cwd, filePath).then((config) => {
             current = config;
 
             callCallbacks(callbacks, config);
         }).catch((err) => {
-            console.log(err.message);
+            handleError(err);
 
             return null;
         });
     })
     .on('unlink', () => {
-        console.log('config unlink');
         current = null;
 
         callCallbacks(callbacks, null);
     })
     .on('error', (error) => {
-        console.log('config error');
         if (FS.existsSync(filePath)) {
             console.log(`Watcher error: ${error}`);
         }
@@ -104,7 +102,6 @@ function configWatch(path, options) {
             return control;
         },
         dispose: () => {
-            console.log('config dispose');
             _.forEach(callbacks, (callback, index) => {
                 callback(null);
                 callback[index] = null;

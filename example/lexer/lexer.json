@@ -1,0 +1,9 @@
+{
+    "routes": [{
+        "route": "foo0"
+    }],
+    "start": "foo0",
+    "redirects": [{
+        "route": "foo0"
+    }]
+}

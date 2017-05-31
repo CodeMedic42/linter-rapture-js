@@ -8,12 +8,21 @@ import FS from 'fs';
 
 const fsPromise = Promise.promisifyAll(FS);
 
+function handleError(err) {
+    console.error(err);
+
+    atom.notifications.addError('linter-rapture-js', {
+        dismissable: true,
+        detail: err.message
+    });
+}
+
 function readFile(path, fileName) {
     return fsPromise.readFileAsync(Path.join(path, fileName)).then((contents) => {
         const c = contents.toString();
         return c;
     }).catch((err) => {
-        console.log(err.message);
+        handleError(err);
 
         return null;
     });
@@ -43,11 +52,8 @@ function fileWatch(pattern, path, options) {
 
     const watcher = Chokidar.watch(pattern, _options);
 
-    console.log('fileWatch event setup');
-
     watcher
     .on('add', (file) => {
-        console.log('fileWatch.add');
         readFile(_options.cwd, file).then((contents) => {
             const _file = Path.join(_options.cwd, file);
 
@@ -57,7 +63,6 @@ function fileWatch(pattern, path, options) {
         });
     })
     .on('change', (file) => {
-        console.log('fileWatch.change');
         readFile(_options.cwd, file).then((contents) => {
             const _file = Path.join(_options.cwd, file);
 
@@ -65,14 +70,12 @@ function fileWatch(pattern, path, options) {
 
             callCallbacks(callbacks, _file, contents);
         }).catch((err) => {
-            console.log(err.message);
+            handleError(err);
 
             return null;
         });
     })
     .on('unlink', (file) => {
-        console.log('fileWatch.unlink');
-
         const _file = Path.join(_options.cwd, file);
 
         delete current[_file];
@@ -80,8 +83,6 @@ function fileWatch(pattern, path, options) {
         callCallbacks(callbacks, _file, undefined);
     })
     .on('error', (error, file) => {
-        console.log('fileWatch.error');
-
         if (FS.existsSync(Path.join(_options.cwd, file))) {
             console.log(`Watcher error: ${error}`);
         }
