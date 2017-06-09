@@ -3,23 +3,14 @@
 // eslint-disable-next-line
 import { CompositeDisposable } from 'atom';
 import FsExtra from 'fs-extra';
-// import Rapture from 'rapture-js';
 import _ from 'lodash';
 import Path from 'path';
 import Minimatch from 'minimatch';
 import ConfigWatch from './configWatch';
 import FileWatch from './fileWatch';
+import * as Utilities from './utilities';
 
-function handleError(err) {
-    console.error(err);
-
-    atom.notifications.addError('linter-rapture-js', {
-        dismissable: true,
-        detail: err.message
-    });
-}
-
-export const internalData = {
+const internalData = {
     editorContexts: null,
     linter: null,
     editorGroupContext: null,
@@ -161,7 +152,7 @@ function openProjectSessions(project) {
                         setupArtifactContext(sessionContext, file, sessionContext.rules[ruleId], contents);
                     }
                 } catch (err) {
-                    handleError(err);
+                    Utilities.handleError(err);
                 }
             });
         });
@@ -301,7 +292,7 @@ function setupEditorContext(editorContext) {
         try {
             setupOnLoad(editorContext);
         } catch (err) {
-            handleError(err);
+            Utilities.handleError(err);
         }
     });
 
@@ -317,7 +308,7 @@ function setupEditorContext(editorContext) {
                 context.update(text);
             });
         } catch (err) {
-            handleError(err);
+            Utilities.handleError(err);
         }
     });
 
@@ -329,7 +320,7 @@ function setupEditorContext(editorContext) {
         try {
             editorContext.dispose();
         } catch (err) {
-            handleError(err);
+            Utilities.handleError(err);
         }
     });
 
@@ -425,7 +416,7 @@ function openProject(path) {
                 openProjectSessions(project);
             }
         } catch (err) {
-            handleError(err);
+            Utilities.handleError(err);
         }
     });
 
@@ -474,7 +465,7 @@ export function activate(options) {
     try {
         internalData.watcherOptions = options;
     } catch (err) {
-        handleError(err);
+        Utilities.handleError(err);
     }
 }
 
@@ -503,7 +494,7 @@ export function deactivate() {
 
         internalData.editorContexts = null;
     } catch (err) {
-        handleError(err);
+        Utilities.handleError(err);
     }
 }
 
@@ -527,6 +518,6 @@ export function consumeIndie(registerIndie) {
             openProjectPaths = updateProjects(openProjectPaths, newProjects);
         });
     } catch (err) {
-        handleError(err);
+        Utilities.handleError(err);
     }
 }

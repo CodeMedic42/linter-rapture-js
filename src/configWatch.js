@@ -1,38 +1,26 @@
 'use babel';
 
+import FS from 'fs';
 import _ from 'lodash';
 import Chokidar from 'chokidar';
 import Path from 'path';
 import Promise from 'bluebird';
-import FS from 'fs';
-import Resolve from 'resolve';
+import * as Utilities from './utilities';
 
 const fsPromise = Promise.promisifyAll(FS);
 const configFileName = '.rapturelintrc';
-
-function handleError(err) {
-    console.error(err);
-
-    atom.notifications.addError('linter-rapture-js', {
-        dismissable: true,
-        detail: err.message
-    });
-}
 
 function parseConfig(path, filePath) {
     return fsPromise.readFileAsync(filePath).then((contents) => {
         const config = JSON.parse(contents.toString());
 
         _.forEach(config.sessions, (session) => {
-            const contextResolution = Resolve.sync(session.context, { basedir: path });
-
-            // eslint-disable-next-line import/no-dynamic-require
-            session.context = require(contextResolution).load;
+            session.context = Utilities.loadContext(session.context, path);
         });
 
         return config;
     }).catch((err) => {
-        handleError(err);
+        Utilities.handleError(err);
 
         return null;
     });
@@ -73,7 +61,7 @@ function configWatch(path, options) {
 
             callCallbacks(callbacks, config);
         }).catch((err) => {
-            handleError(err);
+            Utilities.handleError(err);
 
             return null;
         });

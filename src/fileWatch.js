@@ -5,24 +5,16 @@ import Chokidar from 'chokidar';
 import Path from 'path';
 import Promise from 'bluebird';
 import FS from 'fs';
+import * as Utilities from './utilities';
 
 const fsPromise = Promise.promisifyAll(FS);
-
-function handleError(err) {
-    console.error(err);
-
-    atom.notifications.addError('linter-rapture-js', {
-        dismissable: true,
-        detail: err.message
-    });
-}
 
 function readFile(path, fileName) {
     return fsPromise.readFileAsync(Path.join(path, fileName)).then((contents) => {
         const c = contents.toString();
         return c;
     }).catch((err) => {
-        handleError(err);
+        Utilities.handleError(err);
 
         return null;
     });
@@ -70,7 +62,7 @@ function fileWatch(pattern, path, options) {
 
             callCallbacks(callbacks, _file, contents);
         }).catch((err) => {
-            handleError(err);
+            Utilities.handleError(err);
 
             return null;
         });
